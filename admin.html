@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LUNA GROUP — Admin Absensi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#0E1220; --panel:#161C31; --panel2:#1C2340; --line:#2A3355;
+    --text:#EAEDF8; --dim:#98A1C6; --moon:#F5D98B; --ok:#84DCA8; --bad:#F09090;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  body{
+    background:var(--ink); color:var(--text);
+    font-family:'Instrument Sans',system-ui,sans-serif;
+    min-height:100dvh; padding:20px 16px 48px;
+    display:flex; justify-content:center;
+  }
+  .wrap{ width:100%; max-width:680px; }
+  header{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:18px; }
+  h1{ font-family:'Fraunces',serif; font-size:24px; font-weight:600; }
+  h1 span{ color:var(--moon); }
+  .sub{ color:var(--dim); font-size:13px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:16px; }
+  .label{ font-size:12px; letter-spacing:.18em; color:var(--dim); font-weight:600; text-transform:uppercase; margin-bottom:12px; }
+  table{ width:100%; border-collapse:collapse; font-size:14px; }
+  th{ text-align:left; color:var(--dim); font-weight:500; font-size:12px; padding:6px 8px; border-bottom:1px solid var(--line); }
+  td{ padding:9px 8px; border-bottom:1px solid #202848; }
+  tr:last-child td{ border-bottom:none; }
+  .code{ font-family:'IBM Plex Mono',monospace; font-weight:600; letter-spacing:.18em; color:var(--moon); }
+  .t{ font-family:'IBM Plex Mono',monospace; }
+  .miss{ color:var(--dim); }
+  .warn{ color:var(--bad); font-size:12px; }
+  button{ font:inherit; cursor:pointer; border:none; border-radius:10px; }
+  .btn{ background:var(--panel2); border:1px solid var(--line); color:var(--text); padding:10px 14px; font-size:14px; font-weight:500; }
+  .btn:active{ background:var(--line); }
+  .btn-gold{ background:var(--moon); color:#101426; font-weight:600; padding:12px 16px; }
+  .btn-danger{ background:none; border:1px solid var(--line); color:var(--bad); padding:6px 10px; font-size:12px; }
+  .row{ display:flex; gap:8px; flex-wrap:wrap; }
+  input[type=text], input[type=password], input[type=date]{
+    font:inherit; background:var(--panel2); border:1px solid var(--line); border-radius:10px;
+    color:var(--text); padding:11px 12px; font-size:15px; flex:1; min-width:0;
+    color-scheme:dark;
+  }
+  .hist{ list-style:none; }
+  .hist li{ display:flex; justify-content:space-between; padding:8px 4px; border-bottom:1px solid #202848; font-size:14px; }
+  .hist li:last-child{ border-bottom:none; }
+  .tag{ font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; margin-left:8px; }
+  .tag.in{ background:#1F3A2C; color:var(--ok); }
+  .tag.out{ background:#3A2A1F; color:var(--moon); }
+  .empty{ color:var(--dim); font-size:14px; padding:8px 0; }
+  .msg{ font-size:13px; margin-top:8px; min-height:16px; }
+  .msg.ok{ color:var(--ok); } .msg.bad{ color:var(--bad); }
+  .hidden{ display:none; }
+  /* PIN gate */
+  #gate{ max-width:340px; margin:12vh auto 0; text-align:center; }
+  #gate .moonmark{ font-size:34px; }
+  #gate h1{ margin:8px 0 4px; }
+  #gate p{ color:var(--dim); font-size:14px; margin-bottom:16px; }
+  #gate form{ display:flex; gap:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- PIN GATE -->
+  <div id="gate">
+    <div class="moonmark">🌙</div>
+    <h1>LUNA <span>GROUP</span></h1>
+    <p>Dashboard Admin Absensi</p>
+    <form onsubmit="unlock(event)">
+      <input type="password" id="pin" placeholder="PIN Admin" inputmode="numeric" autocomplete="off">
+      <button class="btn-gold" type="submit">Masuk</button>
+    </form>
+    <div class="msg bad" id="gate-msg"></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dash" class="hidden">
+    <header>
+      <div>
+        <h1>LUNA <span>GROUP</span> · Admin</h1>
+        <div class="sub" id="today-label"></div>
+      </div>
+      <button class="btn" onclick="refresh()">↻ Muat Ulang</button>
+    </header>
+
+    <div class="card">
+      <div class="label">Kode & Status Hari Ini</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Nama</th><th>Kode In</th><th>Kode Out</th><th>Masuk</th><th>Pulang</th>
+          </tr></thead>
+          <tbody id="emp-rows"><tr><td colspan="5" class="empty">Memuat…</td></tr></tbody>
+        </table>
+      </div>
+      <p class="sub" style="margin-top:10px">Kode dibuat otomatis setiap hari dan hanya terlihat di halaman ini. Berikan secara langsung ke karyawan.</p>
+    </div>
+
+    <div class="card">
+      <div class="label">Riwayat Hari Ini</div>
+      <ul class="hist" id="hist"><li class="empty">Memuat…</li></ul>
+    </div>
+
+    <div class="card">
+      <div class="label">Unduh Data (.txt)</div>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn" onclick="exportRange('day')">Hari Ini</button>
+        <button class="btn" onclick="exportRange('week')">Minggu Ini</button>
+        <button class="btn" onclick="exportRange('month')">Bulan Ini</button>
+      </div>
+      <div class="row">
+        <input type="date" id="from"> <input type="date" id="to">
+        <button class="btn" onclick="exportRange('custom')">Unduh Rentang</button>
+      </div>
+      <div class="msg" id="exp-msg"></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Anggota</div>
+      <div class="row" style="margin-bottom:12px">
+        <input type="text" id="new-name" placeholder="Nama karyawan baru">
+        <button class="btn-gold" onclick="addEmployee()">Tambah</button>
+      </div>
+      <table>
+        <tbody id="member-rows"></tbody>
+      </table>
+      <div class="msg" id="mem-msg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= KONFIGURASI ================= */
+const SUPABASE_URL = "PASTE_PROJECT_URL_DISINI";
+const SUPABASE_ANON_KEY = "PASTE_ANON_KEY_DISINI";
+/* =============================================== */
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let PIN = null;
+let cache = null; // last dashboard payload
+
+async function unlock(e){
+  e.preventDefault();
+  const pin = document.getElementById("pin").value.trim();
+  const msg = document.getElementById("gate-msg");
+  msg.textContent = "Memeriksa…"; msg.className = "msg";
+  try{
+    const { data, error } = await db.rpc("admin_dashboard", { p_pin: pin });
+    if (error) throw error;
+    if (!data.ok){ msg.textContent = data.msg; msg.className = "msg bad"; return; }
+    PIN = pin;
+    document.getElementById("gate").classList.add("hidden");
+    document.getElementById("dash").classList.remove("hidden");
+    render(data);
+  }catch(err){
+    msg.textContent = "Gagal terhubung ke server."; msg.className = "msg bad";
+  }
+}
+
+async function refresh(){
+  try{
+    const { data, error } = await db.rpc("admin_dashboard", { p_pin: PIN });
+    if (error) throw error;
+    if (data.ok) render(data);
+  }catch(err){ /* keep old view */ }
+}
+
+function render(data){
+  cache = data;
+  const d = new Date(data.date + "T00:00:00");
+  const days = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+  const months = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+  document.getElementById("today-label").textContent =
+    `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} (WIB)`;
+
+  const emp = document.getElementById("emp-rows");
+  if (!data.employees.length){
+    emp.innerHTML = '<tr><td colspan="5" class="empty">Belum ada karyawan. Tambahkan di bagian Anggota.</td></tr>';
+  } else {
+    emp.innerHTML = data.employees.map(e => {
+      const outCell = e.out_at
+        ? `<span class="t">${e.out_at}</span>`
+        : (e.in_at ? '<span class="warn">belum</span>' : '<span class="miss">—</span>');
+      return `<tr>
+        <td>${esc(e.name)}</td>
+        <td class="code">${e.code_in}</td>
+        <td class="code">${e.code_out}</td>
+        <td>${e.in_at ? `<span class="t">${e.in_at}</span>` : '<span class="miss">—</span>'}</td>
+        <td>${outCell}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  const hist = document.getElementById("hist");
+  if (!data.history.length){
+    hist.innerHTML = '<li class="empty">Belum ada aktivitas hari ini.</li>';
+  } else {
+    hist.innerHTML = data.history.map(h => `
+      <li><span>${esc(h.name)}<span class="tag ${h.action}">${h.action === "in" ? "MASUK" : "PULANG"}</span></span>
+      <span class="t">${h.at}</span></li>`).join("");
+  }
+
+  const mem = document.getElementById("member-rows");
+  mem.innerHTML = data.employees.map(e => `
+    <tr><td>${esc(e.name)}</td>
+    <td style="text-align:right"><button class="btn-danger" onclick="removeEmployee('${e.id}', '${esc(e.name)}')">Nonaktifkan</button></td></tr>`
+  ).join("") || '<tr><td class="empty">Belum ada anggota.</td></tr>';
+}
+
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function addEmployee(){
+  const inp = document.getElementById("new-name");
+  const msg = document.getElementById("mem-msg");
+  const name = inp.value.trim();
+  if (!name){ return; }
+  msg.textContent = "Menambahkan…"; msg.className = "msg";
+  try{
+    const { data, error } = await db.rpc("admin_add_employee", { p_pin: PIN, p_name: name });
+    if (error) throw error;
+    if (!data.ok){ msg.textContent = data.msg; msg.className = "msg bad"; return; }
+    inp.value = "";
+    msg.textContent = "Karyawan ditambahkan."; msg.className = "msg ok";
+    refresh();
+  }catch(err){ msg.textContent = "Gagal terhubung ke server."; msg.className = "msg bad"; }
+}
+
+async function removeEmployee(id, name){
+  if (!confirm(`Nonaktifkan ${name}? Riwayat absensinya tetap tersimpan.`)) return;
+  const msg = document.getElementById("mem-msg");
+  try{
+    const { data, error } = await db.rpc("admin_remove_employee", { p_pin: PIN, p_id: id });
+    if (error) throw error;
+    if (!data.ok){ msg.textContent = data.msg; msg.className = "msg bad"; return; }
+    msg.textContent = `${name} dinonaktifkan.`; msg.className = "msg ok";
+    refresh();
+  }catch(err){ msg.textContent = "Gagal terhubung ke server."; msg.className = "msg bad"; }
+}
+
+/* ---------- Export .txt ---------- */
+function fmtDate(d){ return d.toISOString().slice(0,10); }
+function jktNow(){ return new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Jakarta"})); }
+
+function rangeFor(kind){
+  const now = jktNow();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (kind === "day")  return [today, today, "harian"];
+  if (kind === "week"){
+    const dow = (today.getDay() + 6) % 7; // Monday = 0
+    const mon = new Date(today); mon.setDate(today.getDate() - dow);
+    const sun = new Date(mon);  sun.setDate(mon.getDate() + 6);
+    return [mon, sun, "mingguan"];
+  }
+  if (kind === "month"){
+    const first = new Date(today.getFullYear(), today.getMonth(), 1);
+    const last  = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return [first, last, "bulanan"];
+  }
+  const f = document.getElementById("from").value;
+  const t = document.getElementById("to").value;
+  if (!f || !t) return null;
+  return [new Date(f + "T00:00:00"), new Date(t + "T00:00:00"), "rentang"];
+}
+
+function toLocalISO(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+async function exportRange(kind){
+  const msg = document.getElementById("exp-msg");
+  const r = rangeFor(kind);
+  if (!r){ msg.textContent = "Pilih tanggal awal dan akhir dulu."; msg.className = "msg bad"; return; }
+  const [from, to, label] = r;
+  msg.textContent = "Menyiapkan…"; msg.className = "msg";
+  try{
+    const { data, error } = await db.rpc("admin_export",
+      { p_pin: PIN, p_from: toLocalISO(from), p_to: toLocalISO(to) });
+    if (error) throw error;
+    if (!data.ok){ msg.textContent = data.msg; msg.className = "msg bad"; return; }
+    downloadTxt(data.rows, toLocalISO(from), toLocalISO(to), label);
+    msg.textContent = "File terunduh."; msg.className = "msg ok";
+  }catch(err){ msg.textContent = "Gagal terhubung ke server."; msg.className = "msg bad"; }
+}
+
+function pad(s, n){ s = String(s ?? ""); return s.length >= n ? s.slice(0, n) : s + " ".repeat(n - s.length); }
+
+function downloadTxt(rows, from, to, label){
+  const lines = [];
+  lines.push("LUNA GROUP - LAPORAN ABSENSI");
+  lines.push(`Periode : ${from} s/d ${to}`);
+  lines.push(`Dibuat  : ${toLocalISO(jktNow())} (WIB)`);
+  lines.push("");
+  lines.push(pad("TANGGAL", 12) + pad("NAMA", 22) + pad("MASUK", 8) + pad("PULANG", 8) + "KET");
+  lines.push("-".repeat(58));
+  if (!rows.length){
+    lines.push("(tidak ada data pada periode ini)");
+  }
+  for (const r of rows){
+    const out = r.out_at || "--:--";
+    const ket = (r.in_at && !r.out_at) ? "belum clock out"
+              : (!r.in_at && r.out_at) ? "tanpa clock in" : "";
+    lines.push(pad(r.day, 12) + pad(r.name, 22) + pad(r.in_at || "--:--", 8) + pad(out, 8) + ket);
+  }
+  lines.push("");
+  lines.push(`Total baris: ${rows.length}`);
+  const blob = new Blob([lines.join("\r\n")], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `absensi-luna-${label}-${from}_${to}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>
