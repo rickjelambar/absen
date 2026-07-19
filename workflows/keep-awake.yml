@@ -1,0 +1,47 @@
+name: Keep Supabase Awake
+
+# Runs every 3 days and does two things:
+#   1. Pings the Supabase project so it never hits the 7-day sleep.
+#   2. Commits a tiny timestamp file so GitHub never marks the repo
+#      "inactive" and disables this schedule (the 60-day rule).
+
+on:
+  schedule:
+    - cron: '0 6 */3 * *'   # every 3 days, 06:00 UTC (13:00 WIB)
+  workflow_dispatch:          # adds a "Run workflow" button for manual testing
+
+permissions:
+  contents: write             # lets the workflow push the timestamp commit
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Ping Supabase
+        run: |
+          # ---------- KONFIGURASI (same two values as your HTML) ----------
+          SUPABASE_URL="PASTE_PROJECT_URL_DISINI"
+          SUPABASE_ANON_KEY="PASTE_ANON_KEY_DISINI"
+          # ----------------------------------------------------------------
+
+          curl --fail --silent --show-error \
+            "$SUPABASE_URL/rest/v1/rpc/get_employees" \
+            -X POST \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+          echo ""
+          echo "Supabase pinged successfully."
+
+      - name: Update keepalive timestamp
+        run: |
+          date -u > .keepalive
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .keepalive
+          git commit -m "chore: keepalive $(date -u +%Y-%m-%d)" || echo "nothing to commit"
+          git push
